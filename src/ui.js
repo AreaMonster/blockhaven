@@ -190,9 +190,10 @@ export class UI {
     click('btn-death-title', () => { g.quitToTitle(); });
     $('clicktoplay').addEventListener('click', () => this.lock());
 
-    const keys = ['renderDist', 'detailDist', 'shaders', 'fov', 'sensitivity', 'gamma', 'music', 'sfx', 'scale'];
+    const keys = ['renderDist', 'detailDist', 'lodQuality', 'shaders', 'fov', 'sensitivity', 'gamma', 'music', 'sfx', 'scale'];
     const fmt = {
       renderDist: (v) => `${v} chunks · ${(v * 16).toLocaleString()} blocks`,
+      lodQuality: (v) => ['Low', 'Medium', 'High', 'Very high (strong graphics card)', 'Ultra (very strong graphics card)'][v | 0],
       detailDist: (v) => `${v} chunks${v > 16 ? ' (needs a fast computer)' : ''}`, fov: (v) => `${v}°`, sensitivity: (v) => `${Math.round(v * 100)}%`,
       gamma: (v) => `${Math.round(v * 100)}%`, music: (v) => `${Math.round(v * 100)}%`, sfx: (v) => `${Math.round(v * 100)}%`,
       scale: (v) => `${Math.round(v * 100)}%`, shaders: (v) => ['Off', 'Fast (shadows)', 'Fancy (soft shadows, light shafts)'][v | 0],
@@ -223,7 +224,7 @@ export class UI {
 
   renderSettings() {
     const s = this.game.settings;
-    for (const k of ['renderDist', 'detailDist', 'shaders', 'fov', 'sensitivity', 'gamma', 'music', 'sfx', 'scale']) {
+    for (const k of ['renderDist', 'detailDist', 'lodQuality', 'shaders', 'fov', 'sensitivity', 'gamma', 'music', 'sfx', 'scale']) {
       $(`set-${k}`).value = s[k];
       $(`out-${k}`).textContent = this.fmt[k](s[k]);
     }

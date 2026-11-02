@@ -172,7 +172,7 @@ class MeshPool {
 let chunkUid = 0;
 
 const DEFAULT_SETTINGS = {
-  renderDist: 32, detailDist: 10, fov: 75, sensitivity: 1, gamma: 0.85, music: 0.4, sfx: 0.8,
+  renderDist: 32, detailDist: 10, lodQuality: 2, fov: 75, sensitivity: 1, gamma: 0.85, music: 0.4, sfx: 0.8,
   bob: true, fancyLeaves: true, clouds: true, invertY: false, scale: 1, post: true, shaders: 2,
 };
 // The sun's path is tilted toward the south so noon shadows have some shape.
@@ -185,7 +185,7 @@ export class Game {
     this.audio = audio;
     this.renderer = new Renderer(canvas);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, Store.loadSettings());
-    if (matchMedia('(pointer: coarse)').matches && !Store.loadSettings().renderDist) { this.settings.renderDist = 16; this.settings.detailDist = 5; this.settings.shaders = 0; }
+    if (matchMedia('(pointer: coarse)').matches && !Store.loadSettings().renderDist) { this.settings.renderDist = 16; this.settings.detailDist = 5; this.settings.lodQuality = 1; this.settings.shaders = 0; }
     this.state = 'menu';
     this.world = null;
     this.player = new Player();
@@ -364,7 +364,7 @@ export class Game {
   }
 
   // Far terrain: a quadtree of tiles around the camera. Tile size doubles with
-  // distance (64 blocks at 2-block cells, 128 at 4, ...). Missing tiles fall back
+  // distance (32 blocks at 1-block cells, 64 at 2, 128 at 4, ...). Missing tiles fall back
   // to their parent so the horizon never shows holes, and stale tiles are freed.
   updateLod() {
     const p = this.player, w = this.world, pool = this.pool;
@@ -382,11 +382,15 @@ export class Game {
     if (R <= D * 16 + 24 || pool.failed) { this.freeLod(now, 0); return; }
     const cx = p.ix, cz = p.iz;
     const inner = (D - 1) * 16;
-    let Lmax = 0;
-    while ((64 << Lmax) < R / 2 && Lmax < 12) Lmax++;
+    // Quality sets how far each detail level reaches before tiles get coarser,
+    // and whether the finest level samples every block (Ultra) or every second one.
+    const q = clamp(this.settings.lodQuality | 0, 0, 4);
+    const reach = [0.9, 1.25, 1.8, 2.6, 3.6][q], Lmin = q >= 4 ? 0 : 1;
+    let Lmax = Lmin;
+    while ((32 << Lmax) < R / 2 && Lmax < 13) Lmax++;
     const req = [];
     const visit = (L, tx, tz, out) => {
-      const S = 64 << L, x0 = tx * S, z0 = tz * S;
+      const S = 32 << L, x0 = tx * S, z0 = tz * S;
       const dx = Math.max(x0 - cx, 0, cx - (x0 + S)), dz = Math.max(z0 - cz, 0, cz - (z0 + S));
       const d = Math.hypot(dx, dz);
       if (d > R) return true;
@@ -395,7 +399,7 @@ export class Game {
       const key = `${L}:${tx}:${tz}`;
       let t = lod.tiles.get(key);
       if (t) t.used = now;
-      const split = L > 0 && !covered && d < S * 1.25;
+      const split = L > Lmin && !covered && d < S * reach;
       if (split) {
         const kids = [];
         let all = true;
@@ -408,7 +412,7 @@ export class Game {
       if (!t.pending) req.push([d / S + (covered ? 4 : 0), t]);
       return false;
     };
-    const top = 64 << Lmax;
+    const top = 32 << Lmax;
     const r0x = Math.floor((cx - R) / top), r1x = Math.floor((cx + R) / top), r0z = Math.floor((cz - R) / top), r1z = Math.floor((cz + R) / top);
     for (let tz = r0z; tz <= r1z; tz++) for (let tx = r0x; tx <= r1x; tx++) visit(Lmax, tx, tz, lod.draw);
     req.sort((a, b) => a[0] - b[0]);
